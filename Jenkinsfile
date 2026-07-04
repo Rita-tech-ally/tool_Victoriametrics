@@ -6,13 +6,12 @@ pipeline {
     }
 
     environment {
-        // AWS Credentials from Jenkins (Credentials type: Secret text)
-        AWS_ACCESS_KEY_ID     = credentials('AWS_ACCESS_KEY_ID')
-        AWS_SECRET_ACCESS_KEY = credentials('AWS_SECRET_ACCESS_KEY')
+        // AWS Credentials from Jenkins (using the existing ID 'aws-creds')
+        AWS_CREDS             = credentials('aws-creds')
         AWS_DEFAULT_REGION    = 'ap-south-1'
 
-        // SSH Private Key from Jenkins (Credentials type: Secret file)
-        SSH_KEY_FILE          = credentials('SAKSHI_SSH_KEY')
+        // SSH Private Key from Jenkins (using the existing ID 'ssh-key')
+        SSH_KEY_FILE          = credentials('ssh-key')
     }
 
     stages {
