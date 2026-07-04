@@ -246,6 +246,13 @@ pipeline {
                 } catch (Exception e) {
                     echo "Skipping file cleanup: No active agent node workspace found (${e.getMessage()})"
                 }
+
+                try {
+                    echo "Creating S3 backup of Terraform state..."
+                    sh 'aws s3 cp s3://victoriametrics-tfstate-bucket/terraform.tfstate s3://victoriametrics-tfstate-bucket/backup/terraform-${BUILD_NUMBER}.tfstate || echo "No state file found in S3 to backup."'
+                } catch (Exception e) {
+                    echo "Failed to backup state file to S3: ${e.getMessage()}"
+                }
             }
         }
         success {

@@ -61,6 +61,12 @@ resource "aws_security_group" "ingestion" {
     security_groups = [aws_security_group.alb.id] # Metrics intake from ALB
   }
   ingress {
+    from_port   = 8480
+    to_port     = 8480
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr] # Internal vmagent write access
+  }
+  ingress {
     from_port   = 8429
     to_port     = 8429
     protocol    = "tcp"

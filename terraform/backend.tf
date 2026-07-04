@@ -1,12 +1,12 @@
-#terraform {
-#  backend "s3" {
-#    bucket         = "sakshi-victoriametrics-tfstate-bucket"
-#    key            = "prod/victoria-metrics/terraform.tfstate"
-#    region         = "ap-south-1"
-#    dynamodb_table = "sakshi-victoriametrics-tfstate-locks"
-#    encrypt        = true
-#  }
-#}
+terraform {
+  backend "s3" {
+    bucket         = "victoriametrics-tfstate-bucket"
+    key            = "terraform.tfstate"
+    region         = "ap-south-1"
+    dynamodb_table = "victoriametrics-tfstate-locks"
+    encrypt        = true
+  }
+}
 
 # This resource is used by the Terraform backend for State Locking
 resource "aws_dynamodb_table" "terraform_locks" {
