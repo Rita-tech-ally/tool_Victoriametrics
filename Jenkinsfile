@@ -250,8 +250,12 @@ pipeline {
     post {
         always {
             script {
-                echo "Cleaning up temporary private key file..."
-                sh 'rm -f sakshi.pem'
+                try {
+                    echo "Cleaning up temporary private key file..."
+                    sh 'rm -f sakshi.pem'
+                } catch (Exception e) {
+                    echo "Skipping file cleanup: No active agent node workspace found (${e.getMessage()})"
+                }
             }
         }
         success {
