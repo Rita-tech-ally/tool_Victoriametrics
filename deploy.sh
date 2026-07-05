@@ -4,7 +4,7 @@ set -euo pipefail
 # 1. Run first-stage Terraform Apply (standalone nodes deployed, ASGs set to 0)
 echo "=== Step 1: Deploying standalone infrastructure (ASGs scale = 0) ==="
 cd terraform
-terraform apply -auto-approve \
+terraform apply -auto-approve -lock=false \
   -var="ingestion_asg_desired=0" \
   -var="ingestion_asg_min=0" \
   -var="query_asg_desired=0" \

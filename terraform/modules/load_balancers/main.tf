@@ -82,7 +82,7 @@ resource "aws_lb_target_group_attachment" "vmselect" {
 
 resource "aws_autoscaling_group" "ingestion" {
   desired_capacity    = var.ingestion_asg_desired
-  max_size            = 4
+  max_size            = 2
   min_size            = var.ingestion_asg_min
   vpc_zone_identifier = slice(var.private_subnets, 0, 2)
   target_group_arns   = [aws_lb_target_group.vminsert.arn]
@@ -101,7 +101,7 @@ resource "aws_autoscaling_group" "ingestion" {
 
 resource "aws_autoscaling_group" "query" {
   desired_capacity    = var.query_asg_desired
-  max_size            = 4
+  max_size            = 2
   min_size            = var.query_asg_min
   vpc_zone_identifier = slice(var.private_subnets, 0, 2)
   target_group_arns   = [aws_lb_target_group.vmselect.arn]

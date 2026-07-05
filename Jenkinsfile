@@ -1,5 +1,9 @@
 pipeline {
-    agent any
+    agent {
+        node {
+            customWorkspace '/home/ritu/tool_victoria_metrics/victoriametrics-ha'
+        }
+    }
 
     parameters {
         choice(name: 'ACTION', choices: ['apply', 'destroy'], description: 'Choose whether to deploy (apply) or clean up (destroy) the infrastructure.')
