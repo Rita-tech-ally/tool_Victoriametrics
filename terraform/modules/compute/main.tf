@@ -68,6 +68,15 @@ resource "aws_launch_template" "ingestion" {
     associate_public_ip_address = false
     security_groups             = [var.sg_ingestion_id]
   }
+
+  tag_specifications {
+    resource_type = "instance"
+    tags = {
+      Name      = "${var.project_name}-${var.environment}-ingest"
+      component = "vminsert"
+      extrarole = "vmagent"
+    }
+  }
 }
 
 # 4. QUERY LAUNCH TEMPLATE (vmselect + vmalert)
@@ -80,6 +89,15 @@ resource "aws_launch_template" "query" {
   network_interfaces {
     associate_public_ip_address = false
     security_groups             = [var.sg_query_id]
+  }
+
+  tag_specifications {
+    resource_type = "instance"
+    tags = {
+      Name      = "${var.project_name}-${var.environment}-query"
+      component = "vmselect"
+      extrarole = "vmalert,vmagent"
+    }
   }
 }
 

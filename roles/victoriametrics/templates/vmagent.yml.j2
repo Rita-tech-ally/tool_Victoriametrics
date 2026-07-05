@@ -8,3 +8,31 @@ scrape_configs:
 {% for host in groups['vmagent'] | default([]) %}
           - "{{ hostvars[host].private_ip_address | default(hostvars[host].ansible_host) | default(host) }}:8429"
 {% endfor %}
+
+  - job_name: "vmstorage"
+    static_configs:
+      - targets:
+{% for host in groups['vmstorage'] | default([]) %}
+          - "{{ hostvars[host].private_ip_address | default(hostvars[host].ansible_host) | default(host) }}:8482"
+{% endfor %}
+
+  - job_name: "vminsert"
+    static_configs:
+      - targets:
+{% for host in groups['vminsert'] | default([]) %}
+          - "{{ hostvars[host].private_ip_address | default(hostvars[host].ansible_host) | default(host) }}:8480"
+{% endfor %}
+
+  - job_name: "vmselect"
+    static_configs:
+      - targets:
+{% for host in groups['vmselect'] | default([]) %}
+          - "{{ hostvars[host].private_ip_address | default(hostvars[host].ansible_host) | default(host) }}:8481"
+{% endfor %}
+
+  - job_name: "vmalert"
+    static_configs:
+      - targets:
+{% for host in groups['vmalert'] | default([]) %}
+          - "{{ hostvars[host].private_ip_address | default(hostvars[host].ansible_host) | default(host) }}:8880"
+{% endfor %}
