@@ -55,39 +55,35 @@ pipeline {
         }
 
         stage('Terraform Plan') {
-            when {
-                expression { params.ACTION == 'apply' }
-            }
             steps {
                 dir('terraform') {
-                    echo "Generating Terraform execution plan (dry run)..."
-                    sh '''
-                        terraform plan \
-                          -var="ingestion_asg_desired=0" \
-                          -var="ingestion_asg_min=0" \
-                          -var="query_asg_desired=0" \
-                          -var="query_asg_min=0"
-                    '''
+                    script {
+                        if (params.ACTION == 'apply') {
+                            echo "Generating Terraform execution plan (dry run for apply)..."
+                            sh 'terraform plan -var="app_asg_desired=0" -var="app_asg_min=0"'
+                        } else {
+                            echo "Generating Terraform destruction plan (dry run for destroy)..."
+                            sh 'terraform plan -destroy'
+                        }
+                    }
                 }
             }
         }
 
         stage('Manual Approval') {
-            when {
-                expression { params.ACTION == 'apply' }
-            }
             steps {
                 script {
-                    echo "Sending approval request email to rituc7707@gmail.com..."
+                    String actionUpper = params.ACTION.toUpperCase()
+                    echo "Sending approval request email for ${actionUpper} to rituc7707@gmail.com..."
                     try {
                         mail to: 'rituc7707@gmail.com',
-                             subject: "APPROVAL REQUIRED: Job '${env.JOB_NAME}' [build #${env.BUILD_NUMBER}]",
-                             body: "The deployment pipeline has completed the Terraform Plan stage and is waiting for your approval.\n\nPlease approve or abort the build here: ${env.BUILD_URL}"
+                             subject: "APPROVAL REQUIRED: Job '${env.JOB_NAME}' [build #${env.BUILD_NUMBER}] - ${actionUpper}",
+                             body: "The pipeline has completed the Terraform Plan stage for ${actionUpper} and is waiting for your approval.\n\nPlease approve or abort the build here: ${env.BUILD_URL}"
                     } catch (Exception e) {
                         echo "Failed to send Approval email: ${e.getMessage()}"
                     }
 
-                    input message: 'Do you want to proceed with the deployment?', ok: 'Deploy'
+                    input message: "Do you want to proceed with the ${params.ACTION}?", ok: "${actionUpper}"
                 }
             }
         }
