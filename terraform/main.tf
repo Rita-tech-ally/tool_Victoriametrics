@@ -65,8 +65,10 @@ inventory = aws_ec2.yml
 host_key_checking = False
 remote_user = ubuntu
 private_key_file = sakshi.pem
+pipelining = True
 
 [ssh_connection]
-ssh_args = -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ProxyCommand="ssh -i sakshi.pem -o StrictHostKeyChecking=no -W %h:%p -q ubuntu@${module.compute.bastion_public_ip}"
+ssh_args = -o ControlMaster=auto -o ControlPersist=30m -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ProxyCommand="ssh -i sakshi.pem -o StrictHostKeyChecking=no -o ControlMaster=auto -o ControlPersist=30m -W %h:%p -q ubuntu@${module.compute.bastion_public_ip}"
+control_path = %%(directory)s/ansible-ssh-%%h-%%p-%%r
 EOT
 }
