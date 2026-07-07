@@ -72,166 +72,32 @@ pipeline {
             }
         }
 
-        stage('Terraform Apply (Standalone Nodes)') {
-            when {
-                expression { params.ACTION == 'apply' }
-            }
-            steps {
-                dir('terraform') {
-                    // Stage 1: Deploy standalone VM instances only (ASGs scale set to 0)
-                    sh '''
-                        terraform apply -auto-approve \
-                          -var="ingestion_asg_desired=0" \
-                          -var="ingestion_asg_min=0" \
-                          -var="query_asg_desired=0" \
-                          -var="query_asg_min=0"
-                    '''
-                }
-            }
-        }
-
-        stage('Wait for Standalone Boot') {
-            when {
-                expression { params.ACTION == 'apply' }
-            }
-            steps {
-                echo "Waiting 45 seconds for standalone VM instances to boot up and start SSH..."
-                sleep time: 45, unit: 'SECONDS'
-            }
-        }
-
-        stage('Ansible Dry Run') {
-            when {
-                expression { params.ACTION == 'apply' }
-            }
-            steps {
-                    echo "Running Ansible dry-run (check mode)..."
-                    
-                    // Run Ansible Playbook in check mode (dry-run)
-                    // We allow this to fail/warn gracefully if some steps depend on actual files that aren't created in dry-run
-                    sh 'ansible-playbook ha.yml --check || echo "Ansible Dry Run completed with warnings (expected on unprovisioned nodes)."'
-            }
-        }
-
-        stage('Ansible Provisioning') {
+        stage('Manual Approval') {
             when {
                 expression { params.ACTION == 'apply' }
             }
             steps {
                 script {
-                    // Run Ansible Playbook to configure the VM instances
-                    sh 'ansible-playbook ha.yml'
+                    echo "Sending approval request email to rituc7707@gmail.com..."
+                    try {
+                        mail to: 'rituc7707@gmail.com',
+                             subject: "APPROVAL REQUIRED: Job '${env.JOB_NAME}' [build #${env.BUILD_NUMBER}]",
+                             body: "The deployment pipeline has completed the Terraform Plan stage and is waiting for your approval.\n\nPlease approve or abort the build here: ${env.BUILD_URL}"
+                    } catch (Exception e) {
+                        echo "Failed to send Approval email: ${e.getMessage()}"
+                    }
+
+                    input message: 'Do you want to proceed with the deployment?', ok: 'Deploy'
                 }
             }
         }
 
-        stage('Bake AMIs') {
-            when {
-                expression { params.ACTION == 'apply' }
-            }
+        stage('Execute Action') {
             steps {
                 script {
-                    echo "Fetching standalone Instance IDs from Terraform outputs..."
-                    def vminsertId = sh(script: "cd terraform && terraform output -raw vminsert_instance_id", returnStdout: true).trim()
-                    def vmselectId = sh(script: "cd terraform && terraform output -raw vmselect_instance_id", returnStdout: true).trim()
-                    
-                    echo "vminsert Instance ID: ${vminsertId}"
-                    echo "vmselect Instance ID: ${vmselectId}"
-                    
-                    def timestamp = sh(script: "date +%s", returnStdout: true).trim()
-                    def ingestAmiName = "vminsert-baked-${timestamp}"
-                    def queryAmiName = "vmselect-baked-${timestamp}"
-                    
-                    echo "Baking AMI for Ingestion: ${ingestAmiName}"
-                    def ingestAmiId = sh(script: """
-                        aws ec2 create-image \
-                          --instance-id "${vminsertId}" \
-                          --name "${ingestAmiName}" \
-                          --no-reboot \
-                          --query "ImageId" \
-                          --output text
-                    """, returnStdout: true).trim()
-                    
-                    echo "Baking AMI for Query: ${queryAmiName}"
-                    def queryAmiId = sh(script: """
-                        aws ec2 create-image \
-                          --instance-id "${vmselectId}" \
-                          --name "${queryAmiName}" \
-                          --no-reboot \
-                          --query "ImageId" \
-                          --output text
-                    """, returnStdout: true).trim()
-                    
-                    echo "Ingestion AMI ID: ${ingestAmiId}"
-                    echo "Query AMI ID: ${queryAmiId}"
-                    
-                    // Store AMI IDs in env variables for the next stage
-                    env.INGEST_AMI_ID = ingestAmiId
-                    env.QUERY_AMI_ID = queryAmiId
-                    
-                    echo "Waiting for baked AMIs to become active/available..."
-                    sh "aws ec2 wait image-available --image-ids ${ingestAmiId} ${queryAmiId}"
-                    echo "AMIs are ready for ASG deployment!"
-                }
-            }
-        }
-
-        stage('Terraform Apply (Scale ASGs)') {
-            when {
-                expression { params.ACTION == 'apply' }
-            }
-            steps {
-                dir('terraform') {
-                    // Stage 2: Scale ASGs to 1 using the newly baked AMIs
-                    sh '''
-                        terraform apply -auto-approve \
-                          -var="ami_id_ingestion=${INGEST_AMI_ID}" \
-                          -var="ami_id_query=${QUERY_AMI_ID}" \
-                          -var="ingestion_asg_desired=1" \
-                          -var="ingestion_asg_min=1" \
-                          -var="query_asg_desired=1" \
-                          -var="query_asg_min=1"
-                    '''
-                }
-            }
-        }
-
-        stage('Terraform Destroy') {
-            when {
-                expression { params.ACTION == 'destroy' }
-            }
-            steps {
-                dir('terraform') {
-                    // Destroy all Terraform-managed infrastructure
-                    sh 'terraform destroy -auto-approve'
-                }
-            }
-        }
-
-        stage('Clean Baked AMIs & Snapshots') {
-            when {
-                expression { params.ACTION == 'destroy' }
-            }
-            steps {
-                script {
-                    echo "Cleaning up baked AMIs and their snapshots from AWS..."
-                    sh '''
-                        # Find all AMI IDs starting with vminsert-baked- or vmselect-baked-
-                        for ami_id in $(aws ec2 describe-images --owners self --filters "Name=name,Values=vminsert-baked-*,vmselect-baked-*" --query "Images[].ImageId" --output text); do
-                            echo "Deregistering AMI: $ami_id"
-                            # Find snapshot ID associated with the AMI
-                            snapshot_ids=$(aws ec2 describe-images --image-ids "$ami_id" --query "Images[].BlockDeviceMappings[].Ebs.SnapshotId" --output text)
-                            aws ec2 deregister-image --image-id "$ami_id"
-                            
-                            # Delete the EBS snapshots associated with the AMI
-                            for snap in $snapshot_ids; do
-                                if [ "$snap" != "None" ] && [ -n "$snap" ]; then
-                                    echo "Deleting snapshot: $snap"
-                                    aws ec2 delete-snapshot --snapshot-id "$snap"
-                                fi
-                            done
-                        done
-                    '''
+                    echo "Running action ${params.ACTION}..."
+                    sh "chmod +x deploy.sh"
+                    sh "./deploy.sh ${params.ACTION.toLowerCase()}"
                 }
             }
         }

@@ -1,6 +1,39 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+ACTION="${1:-apply}"
+
+if [ "$ACTION" = "destroy" ]; then
+    echo "=== Action: Destroying VictoriaMetrics HA Infrastructure ==="
+
+    echo "=== Step 1: Running Terraform Destroy ==="
+    cd terraform
+    terraform destroy -auto-approve
+    cd ..
+
+    echo "=== Step 2: Cleaning up baked AMIs and associated snapshots from AWS ==="
+    # Find all AMI IDs starting with vminsert-baked- or vmselect-baked-
+    for ami_id in $(aws ec2 describe-images --owners self --filters "Name=name,Values=vminsert-baked-*,vmselect-baked-*" --query "Images[].ImageId" --output text); do
+        if [ -n "$ami_id" ] && [ "$ami_id" != "None" ]; then
+            echo "Deregistering AMI: $ami_id"
+            snapshot_ids=$(aws ec2 describe-images --image-ids "$ami_id" --query "Images[].BlockDeviceMappings[].Ebs.SnapshotId" --output text)
+            aws ec2 deregister-image --image-id "$ami_id"
+            for snap in $snapshot_ids; do
+                if [ "$snap" != "None" ] && [ -n "$snap" ]; then
+                    echo "Deleting snapshot: $snap"
+                    aws ec2 delete-snapshot --snapshot-id "$snap"
+                fi
+            done
+        fi
+    done
+
+    echo "=== Teardown Completed Successfully! ==="
+    exit 0
+fi
+
+# Default Action: Apply / Deploy
+echo "=== Action: Deploying VictoriaMetrics HA Infrastructure ==="
+
 # 1. Run first-stage Terraform Apply (standalone nodes deployed, ASGs set to 0)
 echo "=== Step 1: Deploying standalone infrastructure (ASGs scale = 0) ==="
 cd terraform
