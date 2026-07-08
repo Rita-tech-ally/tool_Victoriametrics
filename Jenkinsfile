@@ -74,20 +74,23 @@ pipeline {
 
         stage('Manual Approval') {
             when {
-                expression { params.ACTION == 'apply' }
+                expression { params.ACTION == 'apply' || params.ACTION == 'destroy' }
             }
             steps {
                 script {
+                    def actionType = params.ACTION == 'apply' ? 'deployment' : 'destruction'
+                    def actionWord = params.ACTION == 'apply' ? 'Deploy' : 'Destroy'
+                    
                     echo "Sending approval request email to rituc7707@gmail.com..."
                     try {
                         mail to: 'rituc7707@gmail.com',
                              subject: "APPROVAL REQUIRED: Job '${env.JOB_NAME}' [build #${env.BUILD_NUMBER}]",
-                             body: "The deployment pipeline has completed the Terraform Plan stage and is waiting for your approval.\n\nPlease approve or abort the build here: ${env.BUILD_URL}"
+                             body: "The pipeline has initiated a ${actionType} action and is waiting for your approval.\n\nPlease approve or abort the build here: ${env.BUILD_URL}"
                     } catch (Exception e) {
                         echo "Failed to send Approval email: ${e.getMessage()}"
                     }
 
-                    input message: 'Do you want to proceed with the deployment?', ok: 'Deploy'
+                    input message: "Do you want to proceed with the ${actionType}?", ok: actionWord
                 }
             }
         }
